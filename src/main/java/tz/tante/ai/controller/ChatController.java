@@ -12,13 +12,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import tz.tante.ai.models.ChatFindResponseData;
+import tz.tante.ai.models.TanteAiResponseData;
 import tz.tante.ai.models.PropertyManagerApiResponse;
 import tz.tante.ai.models.propertymanager.UnitDetailsDTO;
 import tz.tante.ai.service.PropertyManagerService;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
 
@@ -27,7 +24,6 @@ import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
 public class ChatController
 {
   private static final Logger logger = LoggerFactory.getLogger(ChatController.class);
-  private static final Pattern UNIT_ID_PATTERN = Pattern.compile("(?i)(?:unit\\s*(?:id|#)?\\s*|id\\s+)(\\d+)");
   private final ChatClient chatClient;
   private final PropertyManagerService propertyManagerService;
 
@@ -40,31 +36,28 @@ public class ChatController
   @Value("classpath:/promptTemplates/systemPromptTemplate.st")
   Resource systemPromptTemplate;
 
-  @GetMapping("/find")
-  public ResponseEntity<PropertyManagerApiResponse<ChatFindResponseData>> findProperty(
+  @GetMapping("/units/assist")
+  public ResponseEntity<PropertyManagerApiResponse<TanteAiResponseData>> findProperty(
     @RequestParam String message,
     @RequestParam String customerName,
-    @RequestParam Long userAccountId
+    @RequestParam Long userAccountId,
+    @RequestParam Long unitId
   )
   {
-    Long unitId = extractUnitId(message);
-    UnitDetailsDTO unitDetails = null;
     String verifiedUnitContext = "";
 
     if (unitId != null)
     {
       try
       {
-        unitDetails = propertyManagerService.getUnitDetails(unitId);
+        UnitDetailsDTO unitDetails = propertyManagerService.getUnitDetails(unitId);
         verifiedUnitContext = """
           Verified unit data from Tante Property Manager:
           %s
-          Use only this verified data for unit facts. Do not add missing numerical values.
           """.formatted(unitDetails);
       }
-      catch (IllegalStateException e)
+      catch (Exception exception)
       {
-        logger.error("Unit lookup failed for ID {} and message '{}'", unitId, message, e);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
           .body(new PropertyManagerApiResponse<>(
             false,
@@ -88,7 +81,7 @@ public class ChatController
           """.formatted(customerName, message, verifiedUnitContext))
         .call()
         .content();
-      ChatFindResponseData responseData = new ChatFindResponseData(answer, "llm", unitId, unitDetails);
+      TanteAiResponseData responseData = new TanteAiResponseData(answer, "llm");
       return ResponseEntity.ok(new PropertyManagerApiResponse<>(true, "Request successful", responseData, HttpStatus.OK.value()));
     }
     catch (RuntimeException e)
@@ -102,15 +95,5 @@ public class ChatController
           HttpStatus.INTERNAL_SERVER_ERROR.value()
         ));
     }
-  }
-
-  private Long extractUnitId(String message)
-  {
-    Matcher matcher = UNIT_ID_PATTERN.matcher(message);
-    if (!matcher.find())
-    {
-      return null;
-    }
-    return Long.parseLong(matcher.group(1));
   }
 }

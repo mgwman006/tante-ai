@@ -7,9 +7,13 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
 import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import tz.tante.ai.tools.PropertyManagerTools;
 
 import java.util.List;
 
@@ -34,12 +38,13 @@ public class ChatClientConfig
   }
 
   @Bean
-  public ChatClient chatClient(ChatClient.Builder chatClientBuilder, ToolCallbackProvider tools, ChatMemory chatMemory)
+  public ChatClient chatClient(ChatClient.Builder chatClientBuilder, ChatMemory chatMemory,
+                               RetrievalAugmentationAdvisor retrievalAugmentationAdvisor, PropertyManagerTools propertyManagerTools)
   {
     Advisor memoryAdvisor =MessageChatMemoryAdvisor.builder(chatMemory).build();
     return chatClientBuilder
-      .defaultAdvisors(List.of(memoryAdvisor))
-      .defaultTools(tools)
+      .defaultAdvisors(List.of(memoryAdvisor, retrievalAugmentationAdvisor))
+      .defaultTools(propertyManagerTools)
       .build();
   }
 
@@ -49,6 +54,22 @@ public class ChatClientConfig
     return MessageWindowChatMemory.builder()
       .maxMessages(50)
       .chatMemoryRepository(chatMemoryRepository)
+      .build();
+  }
+
+  @Bean
+  public RetrievalAugmentationAdvisor retrievalAugmentationAdvisor(VectorStore vectorStore)
+  {
+    return RetrievalAugmentationAdvisor
+      .builder()
+      .documentRetriever(
+        VectorStoreDocumentRetriever
+          .builder()
+          .vectorStore(vectorStore)
+          .topK(3)
+          .similarityThreshold(0.5)
+          .build()
+      )
       .build();
   }
 

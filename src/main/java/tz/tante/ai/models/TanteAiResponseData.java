@@ -2,11 +2,9 @@ package tz.tante.ai.models;
 
 import tz.tante.ai.models.propertymanager.UnitDetailsDTO;
 
-public record ChatFindResponseData(
+public record TanteAiResponseData(
   String answer,
-  String source,
-  Long unitId,
-  UnitDetailsDTO unitDetails
+  String source
 )
 {
 }

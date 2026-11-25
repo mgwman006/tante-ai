@@ -9,14 +9,25 @@ spring:
     init:
       mode: never
   ai:
+    vectorstore:
+      qdrant:
+        initialize-schema: true
+        host: localhost
+        port: 6334
+        collection-name: tante-ai-vector-store
+
     chat:
       client:
         enabled: false
     model:
       chat: openai
+      embedding: openai
     openai:
       chat:
         model: docker.io/qwen2.5:latest
+        base-url: http://localhost:12434/engines/v1
+      embedding:
+        model: docker.io/ai/embeddinggemma:latest
         base-url: http://localhost:12434/engines/v1
       api-key: dummy-key
   security:
@@ -36,12 +47,15 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${AUTH_ISSUER_URI:http://localhost:8081/auth-manager}
-
+  docker:
+    compose:
+      stop:
+        command: down
 logging:
   level:
     org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: DEBUG
 server:
-  port: 8085
+  port: 8086
 
 property:
   manager:
